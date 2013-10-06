@@ -125,10 +125,13 @@ handle_call(_Request, _From, State) ->
 
 handle_cast(discover_modules, State) ->
     %% Get a list of all loaded non-system modules.
-    Modules = (erlang:loaded() -- sync_utils:get_system_modules()),
+    %Modules = (erlang:loaded() -- sync_utils:get_system_modules()),
 
     %% Delete excluded modules/applications
-    FilteredModules = filter_modules_to_scan(Modules),
+    %FilteredModules = filter_modules_to_scan(Modules),
+
+    %% customed by Savin-Max
+    FilteredModules = modules_from_included_applications(),
 
     %% Schedule the next interval...
     NewTimers = schedule_cast(discover_modules, 30000, State#state.timers),
@@ -157,7 +160,7 @@ handle_cast(discover_src_dirs, State) ->
     {SrcDirs, HrlDirs} = lists:foldl(F, {[], []}, State#state.modules),
     USortedSrcDirs = lists:usort(SrcDirs),
     USortedHrlDirs = lists:usort(HrlDirs),
-    
+
 %   InitialDirs = sync_utils:initial_src_dirs(),
 
     %% Schedule the next interval...
@@ -715,4 +718,19 @@ filter_modules_to_scan(Modules) ->
 
         _ ->
             Modules
+    end.
+
+modules_from_included_applications() ->
+    case application:get_env(sync, included_apps) of
+        {ok, Apps} ->
+            lists:foldl(fun(App, Acc) ->
+                            case application:get_key(App, modules) of
+                                {ok, Modules} ->
+                                    Acc ++ Modules;
+                                _ ->
+                                    Acc
+                            end
+                        end, [], Apps);
+        _ ->
+            []
     end.
